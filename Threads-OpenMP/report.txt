@@ -1,0 +1,195 @@
+COP4610 – Principles of Operating Systems – Summer C 2014
+Prof. Jose F. Osorio
+Group: Apsalar
+Group Members: Maylem Gonzalez – 2134900
+               Renan Santana – 4031451
+File: Report
+
+Part 1 Observations:
+
+~Task 1.1
+Below is the data collected from one of the tests conducted for task 1.1. The data consists of the tested command line parameters (number of threads) and the resulting final value of the shared variable.
+    # threads	   final value
+	1		20
+	2		40
+	3		60
+	4		77
+	5		86
+
+The correct final value of the shared variable should be 20 times the number of threads used, since each thread would increment the variable 20 times. While the correct number was obtained when 3 threads or less were incrementing the shared value, running the program with 4 threads or more easily resulted in an incorrect final value. We conclude from this data that the shared variable was not being read and written to in an atomic fashion, and the lack of synchronization allowed for a race condition between the threads (multiple threads modifying the shared resource at once). Further tests of these same command line parameters produced similar results (the final value of the shared variable would typically be correct for 3 threads or less, but incorrect for 4 or more). Below are a few lines of the output produced by the program with 5 threads, showing that two thread modified the variable at once, before either have finished writing to the variable.
+
+[root@Apsalar Assignment3]# ./task1_2 5
+*** thread 1 sees value 0
+*** thread 4 sees value 1
+*** thread 0 sees value 1
+*** thread 0 sees value 2
+*** thread 4 sees value 2
+*** thread 1 sees value 3
+*** thread 1 sees value 4
+...
+
+~Task 1.2
+For this task, we used a mutex lock around the line incrementing the shared variable, and used a barrier to make all the threads wait for each other before printing the final value of the shared variable. The use of a lock produced the correct final value for the number of the threads used when we ran tests for 1,2,3,4 and 5 threads. A shortened version of the output produced by the program with 5 threads has been reproduced below.
+
+[root@Apsalar Assignment3]# ./task1_2 5
+*** thread 1 sees value 0
+*** thread 4 sees value 1
+*** thread 4 sees value 2
+*** thread 0 sees value 3
+*** thread 0 sees value 4
+*** thread 1 sees value 5
+	.
+	.
+	.
+*** thread 2 sees value 97
+*** thread 3 sees value 98
+*** thread 3 sees value 99
+Thread 3 sees final value 100
+Thread 4 sees final value 100
+Thread 1 sees final value 100
+Thread 0 sees final value 100
+Thread 2 sees final value 100
+
+As can be seen, each thread increments the shared variable by exactly one with each iteration of the loop, and each thread has the same final value.
+
+~Task 1.3
+This queue scheduling program consists of a list that students are enqueued into when the student threads are created (each thread adding its student to the list). Student nodes in the list have an id, the number of questions to ask, and a boolean representing whether the student is inside the office. Students get to ask one question at a time, and the program loops between the students inside the room based on their order in the list. For example, if the list consists of (student 1)->(student 2)->(student 3), and if only two students can fit in a room, the program would have student 1 and student 2 set their boolean value in_room to true, enter the room, and take turns asking their questions. If student 1 finishes with his questions first, student 1 leaves, and the program then adds student 3 to the room, with students 2 and 3 now taking turn with their questions. This process is repeated until there are no more students in the list. When this happens, the professor naps, and the program terminates. This queue mechanism was made to ensure that a student did not unfairly ask multiple questions in a row when another student also had questions, and to ensure that the student threads created first (i.e. students who waited the longest) entered the office first, as would probably happen in real life.
+
+We used pthread mutexes, barriers and semaphores to syncrhonize the interaction between the student threads and the professor. For example, the professor uses a semaphore to wait for the student to ask a question before beginning to answer the student's question, as this would not make sense. A student thread will post (or signal) this semaphore when the student has asked a question. A different semaphore is then used to make the student wait at this point, so that the professor may first answer the question before the student is done with the interaction. The professor would then answer the question and signal this semaphore to let the student continue. Mutexes were used to protect the critical sections of the code where a shared resource was being modified. For example, a mutex was used to keep multiple student threads from asking the professor questions at the same time, since this would require the threads to simultaneously access and modify the list, a shared resource. A barrier was used to ensure that the list of students was first created before modifications and node removals were made.
+
+Sample output for this task:
+
+root@Apsalar Assignment3]# ./task1_3 3 2
+Student 0 enters the office.
+Student 0 asks a question.
+Professor starts to answer question for student 0.
+Professor is done with answer for student 0.
+Student 0 is satisfied.
+Student 0 leaves the office.
+Student 1 enters the office.
+Student 1 asks a question.
+Professor starts to answer question for student 1.
+Professor is done with answer for student 1.
+Student 1 is satisfied.
+Student 2 enters the office.
+Student 2 asks a question.
+Professor starts to answer question for student 2.
+Professor is done with answer for student 2.
+Student 2 is satisfied.
+Student 1 asks a question.
+Professor starts to answer question for student 1.
+Professor is done with answer for student 1.
+Student 1 is satisfied.
+Student 1 leaves the office.
+Student 2 asks a question.
+Professor starts to answer question for student 2.
+Professor is done with answer for student 2.
+Student 2 is satisfied.
+Student 2 asks a question.
+Professor starts to answer question for student 2.
+Professor is done with answer for student 2.
+Student 2 is satisfied.
+Student 2 leaves the office.
+Professor naps...
+
+
+~Task 2.1
+We first executed this helloworld program in the CentOS virtual machine (1 core). Our output for 1 thread was as follows:
+
+[root@Apsalar OpenMP]# ./helloworld
+Hello World from thread = 0
+Number of threads = 1
+
+This output of one thread was expected, since our virtual machine only has one core. We then altered the number of threads to 4 threads, and received the following output:
+
+[root@Apsalar OpenMP]# export OMP_NUM_THREADS=4
+[root@Apsalar OpenMP]# ./helloworld
+Hello World from thread = 0
+Number of threads = 4
+Hello World from thread = 1
+Hello World from thread = 3
+Hello World from thread = 2
+
+Compiling and running this helloworld program on Dingo, however, produced not one but 24 threads, since the Dingo machines have 24 cores.
+
+[mgonz108@dingo OpenMP]$ ./helloworld 
+Hello World from thread = 20
+Hello World from thread = 19
+Hello World from thread = 15
+Hello World from thread = 8
+Hello World from thread = 6
+Hello World from thread = 5
+Hello World from thread = 17
+Hello World from thread = 7
+Hello World from thread = 16
+Hello World from thread = 18
+Hello World from thread = 0
+Number of threads = 24
+Hello World from thread = 10
+Hello World from thread = 4
+Hello World from thread = 9
+Hello World from thread = 21
+Hello World from thread = 14
+Hello World from thread = 13
+Hello World from thread = 12
+Hello World from thread = 23
+Hello World from thread = 11
+Hello World from thread = 1
+Hello World from thread = 2
+Hello World from thread = 22
+Hello World from thread = 3
+
+Changing the number of threads to 4 in Dingo produced the following output:
+
+[mgonz108@dingo OpenMP]$ setenv OMP_NUM_THREADS 4
+[mgonz108@dingo OpenMP]$ echo $OMP_NUM_THREADS
+4
+[mgonz108@dingo OpenMP]$ ./helloworld 
+Hello World from thread = 0
+Number of threads = 4
+Hello World from thread = 3
+Hello World from thread = 2
+Hello World from thread = 1
+
+We can conclude from these tests that pragma parallel regions fork threads by default based on the number of logical cores on the machine.
+
+~Task 2.2
+-CentOS test (dynamic):
+We first ran this task in the CentOS VM using dynamic scheduling. The number of threads was set to the default, which in our VM is 1. The program started 1 thread that then sequentially performed all 100 iterations in the for loop. We then reran the program, but this time with 4 threads instead of 1. With dynamic work scheduling, the threads did not seem to each do 10 (chunk size) out of the total number of iterations (100). Instead, thread 3, which was the first to start, did 5 chunks in a row, plus 1 iteration from a 6th chunk (iterations 0-50), after which thread 0 started. Thread 0 then did 4 chunks in a row (iterations 60-99). After that point, thread 1 started, followed by thread 2. Instead of one of these new threads taking up the remaining chunk, thread 3 resumed its 6th chunk (iterations 51-59). This test had a runtime of 0.205319. From this test, it looks like a thread performs one chunk, and then any available thread, including the one that just finished, can pick up the next chunk. It also looks like the scheduling of which thread should take up the next chunk is being decided during runtime.
+
+-CentOS test (static):
+We first tested static scheduling in our VM with the default number of threads (1). As expected, the program started 1 thread that sequentially performed all 100 interations of the for loop. We then ran the program again, but this time with 4 threads. With static work scheduling, each of the threads seemed to do close to an equal amount of work per thread. Unlike with dynamic scheduling, the threads did not interleave. Instead, thread 3 was started and performed 2 chunks, or 20 iterations (30-39 and 70-79). Thread 0 then started and did 3 chunks (iterations 0-9, 40-49, and 80-89). Thread 1 then started and did 3 chunks (iterations 10-19, 50-59, and 90-99). Finally, thread 2 started and did the remaining 2 chunks (iterations 20-29 and 60-69). Running this program several times produced similar results, with 2 of the threads being given 3 chunks, and another 2 being given 2 chunks. We observed that static scheduling must make these work load calculations beforehand, during compilation, in order to have each thread start and only do the predetermined amount of work assigned to it. 
+
+The runtime of the test described was 0.021983, which is quite a bit less than the runtime value we saw for 4 threads using dynamic scheduling. We also noted similar differences in runtime with further tests. Thus, we observe that dynamic scheduling seems to suffer from the additional overhead of calculating work loads for each thread at runtime. However, we also observerved that dynamic scheduling can avoid unwanted situations that static scheduling can suffer from (such as when a thread ends up being given a chunk of iterations that are much harder to perform than others and ends up spending a long time on the iteration while the other threads are idle).
+
+-Dingo test (dynamic):
+When we conducted a dynamic scheduling test in the Dingo machine with the default number of threads (24), we noticed that only 3 of the threads picked up chunks from the work queue (threads 9, 16, and 22). As we had previously noted, the threads could interleave, with thread 9 performing part of a chunk at the beginning and then appearing to later finish that chunk while another thread started and performed its chunk. The runtime for this test was 0.186427. We also ran a test with 4 threads and saw that 3 of the 4 threads (0,1 and 3) picked up chunks. Again, we observed interleaving, and noticed that the runtime (0.003142) was much smaller in Dingo than what it was in the VM, probably due to the fact that Dingo has more cores and was able to run all the threads at the same time.
+
+-Dingo test(static):
+Finally, we conducted a test for static scheduling in the Dingo machine with the default number of threads (24). The output consisted of only 10 of the threads performing iterations, even though we expected all 24 threads to do some work. This seems to be the case because the number of iterations defined as a chunk in the program cannot be decremented, so a thread can do no less than 1 chunk. However, since there are only 100 iterations and 1 chunk is 10 iterations, only 10 threads can be scheduled any work. Thus, each of these ten threads was scheduled the smallest amount of work possible (1 chunk), and the rest remained idle. The runtime for this test, 0.087198, was shorter than the runtime for the dynamic scheduling test in Dingo, which supports the conclusions that we made about static and dynamic scheduling during our tests in the VM. Contrary to our observations in the VM, however, we did see quite a bit of interleaving between the threads in the output of the Dingo static scheduling test, as opposed to the static scheduling tests done in the VM. We believe that this is because our VM only has 1 core, so it was only starting one thread at a time, while, Dingo could start all ten threads at the same time. We also conducted a test using 4 threads, and, like in our VM output, two threads did 3 chunks each, and the remaining two threads did 2 chunks each. The runtime of this test, at 0.002535, was much shorter than the VM runtime, which again was to be expected since Dingo can run all the threads at once.
+
+~Task 2.3
+-CentOS tests:
+We first ran this task in our VM for 1 thread and observed that this thread did both of the section blocks in the code, as expected. When we ran it for 4 threads, however, we again saw that one thread did both blocks, while the other 3 threads were started after the second block was picked up (and therefore did not execute any sections). This seems to be the case because only one thread from the team can perform a section block, and once that thread is done with the block, it would be eligible to do the next block if none of the other threads had been started and capable of starting that second block first. With further tests, we did see cases where different threads did the sections, and we also saw interleaving in the output between the threads. For example, we had one test where thread 3 started and did the first 23 iterations of section 1, at which point thread 0 started and began section 2. Thread 0 did all 50 iterations from that section, and thread 3 then finished its last 27 iterations. Thus, the sections were completed as soon as there was a running thread.
+
+Dingo tests:
+We obtained similar results in Dingo. If no other threads had been created by the time the first section was done, then the sole running thread picked up the second section. We did see cases, however, where one thread started running, picked up section 1, and another thread started running and picked up section 2. Since each section is only executed once, however, it seems that a machine capable of running 24 threads simultaneously would do no better with this program than a machine capable of running only two threads simultaneously, since this code makes use of at most two threads running the sections at the same time.
+
+
+~Task 2.4 
+Please see the attached file, task2_4_data, for the data collected for this section.
+
+After collecting our data, we realized that the only time that the use of parallelization provided a significant speedup (compared to the average computation time of the program without parallelization) was when the matrix size was large (i.e. 500 x 500) and more than one thread was used (but only on a machine with multiple logical cores). Data supporting this claim can be seen on the spreadsheets in our data file, specifically in spreadsheet Dingo2, where we tested the program in the 24-core Dingo machine with and without any parallelization and with a large (500x500) matrix.
+
+-Dingo tests (500x500):
+In our parallelization tests, parallelizing the outer for loop only provided the best speedup, which makes sense since the outer for loop is where the threads would be kept busiest (each thread dealing with two nested loops) and would therefore provide the best performance. Parallelizing the middle for loop provided better performance than the program without any parallelization, but it fared worse than just parallelizing the outer loop. Parallelizing both of the loops provided better performance than just the middle for loop, but worse than just the outer for loop. In fact, for the tests with the two parallelized loops and the tests with the parallelized middle loop, the greater the number of threads, the less of a performance increase was seen. Both of these tests, on average, actually showed evidence of performance decay with more than 16 threads. Parallelizing the outer for loop, on the other hand, consistently resulted in lower computation times with a greater number of threads (although the gains seen were smaller as the number of threads went up), producing a clear negative slope in our graph.
+
+-Dingo tests (50x50):
+These parallelization tests did not show signs of any speedup to the program with the use of parallelization in either or both of the loops. In fact, the greater the number of threads that were used, the longer the computation time of the program became. We believe that this occurred because the overhead generated by the use of these threads outweighed any benefits that parallelization could provide with such a small matrix. 
+
+-VM tests (50x50)
+For all of the tests conducted in the virtual machine for a small matrix size, there always seemed to be little, if any, speedup with parallelization. Since the virtual machine only had one core, using additional threads almost always seemed to make the computation time take longer. That is, the benefits that parallelization can provide could not be reaped because the machine was still only able to process one thread at a time, and was also frequently incurring the cost of generating and switching between the threads.
+
+-VM tests (500x500)
+Interestingly enough, parallelizing both of the loops provided a small speedup for the program with a large matrix. On the other hand, parallelizing only the middle loop resulted in a significant performance decay for almost all thread numbers. Parallelizing the outer loop only provided a small speedup (but only when 16 or more threads were used). However, with 20 threads, the computation time seemed to start climbing back up again, so this gain at 16 threads might have been coincidental. Overall, we do not believe any of these methods would result in a speedup if we were to collect much more data in the virtual machine; the computation times in our data fluctuated and went below and above the non-paralleliation computation time at several points for almost all the different parallelization tests, so it is possible that any averages we obtained that showed a speedup were a result of outliers in our sample sets.
+
